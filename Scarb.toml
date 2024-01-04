@@ -7,3 +7,4 @@ edition = "2023_10"
 starknet = ">=2.4.1"
 
 [[target.starknet-contract]]
+allowed-libfuncs-list.name = "experimental"
