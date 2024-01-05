@@ -8,7 +8,6 @@ struct ICall {
 
 #[starknet::interface]
 trait IExternalCalls<T> {
-    // make compatible with even multicalls by taking arrofcalls
     fn call_execute(ref self: T, calls: Array<ICall>) -> Array<Span<felt252>>;
 }
 
@@ -36,12 +35,11 @@ mod Call {
             assert(caller.is_zero(), 'Invalid Caller');
             let tx_info = get_tx_info().unbox();
             assert(tx_info.version != 0, 'Invalid Tx Version');
+            assert(_validate_transaction(caller.into()) == VALIDATED, 'Invalid User Signature');
             _execute_transaction(calls.span())
         }
     }
 
-    // Validate the Tx'n not the account that sent the intent
-    // Adapt to the new changes 
     fn _validate_transaction(caller_address: felt252) -> felt252 {
         let tx_info = get_tx_info().unbox();
         let sig = tx_info.signature;
