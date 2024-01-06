@@ -9,11 +9,28 @@ struct ICall {
 #[starknet::interface]
 trait IExternalCalls<T> {
     fn call_execute(ref self: T, calls: Array<ICall>) -> Array<Span<felt252>>;
+    fn transfer_erc20(ref self: T, token_address: ContractAddress, amount: u256) -> bool;
+}
+
+#[starknet::interface]
+trait IERC20<TState> {
+    fn name(self: @TState) -> felt252;
+    fn symbol(self: @TState) -> felt252;
+    fn decimals(self: @TState) -> u8;
+    fn total_supply(self: @TState) -> u256;
+    fn balance_of(self: @TState, account: ContractAddress) -> u256;
+    fn allowance(self: @TState, owner: ContractAddress, spender: ContractAddress) -> u256;
+    fn transfer(ref self: TState, recipient: ContractAddress, amount: u256) -> bool;
+    fn transfer_from(
+        ref self: TState, sender: ContractAddress, recipient: ContractAddress, amount: u256
+    ) -> bool;
+    fn approve(ref self: TState, spender: ContractAddress, amount: u256) -> bool;
 }
 
 
 #[starknet::contract]
 mod Call {
+    use core::traits::Into;
     use core::box::BoxTrait;
     use core::num::traits::zero::Zero;
     use core::ecdsa::check_ecdsa_signature;
@@ -21,8 +38,11 @@ mod Call {
     use core::result::{ResultTrait};
     use starknet::get_tx_info;
     use starknet::VALIDATED;
-    use super::{ICall, IExternalCalls};
-    use starknet::{SyscallResult, syscalls::call_contract_syscall, get_caller_address};
+    use super::{ICall, IExternalCalls, IERC20, IERC20Dispatcher, IERC20DispatcherTrait};
+    use starknet::{
+        get_contract_address, get_caller_address, ContractAddress, SyscallResult,
+        syscalls::call_contract_syscall,
+    };
 
     #[storage]
     struct Storage {
@@ -37,6 +57,16 @@ mod Call {
             assert(tx_info.version != 0, 'Invalid Tx Version');
             assert(_validate_transaction(caller.into()) == VALIDATED, 'Invalid User Signature');
             _execute_transaction(calls.span())
+        }
+
+        fn transfer_erc20(
+            ref self: ContractState, token_address: ContractAddress, amount: u256
+        ) -> bool {
+            let amount_u256: u256 = amount.into();
+            let transfer_success = IERC20Dispatcher { contract_address: token_address }
+                .transfer_from(get_caller_address(), get_contract_address(), amount_u256);
+            assert(transfer_success, 'Transfer to us failed');
+            true
         }
     }
 
