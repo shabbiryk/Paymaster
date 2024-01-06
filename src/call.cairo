@@ -30,7 +30,8 @@ trait IERC20<TState> {
 
 #[starknet::contract]
 mod Call {
-    use core::traits::Into;
+    use core::starknet::event::EventEmitter;
+    use core::traits::{Into, TryInto};
     use core::box::BoxTrait;
     use core::num::traits::zero::Zero;
     use core::ecdsa::check_ecdsa_signature;
@@ -43,6 +44,19 @@ mod Call {
         get_contract_address, get_caller_address, ContractAddress, SyscallResult,
         syscalls::call_contract_syscall,
     };
+
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    enum Event {
+        Transfer: Transfer,
+    }
+    #[derive(Drop, starknet::Event)]
+    struct Transfer {
+        from: ContractAddress,
+        to: ContractAddress,
+        value: u256
+    }
+
 
     #[storage]
     struct Storage {
@@ -66,6 +80,12 @@ mod Call {
             let transfer_success = IERC20Dispatcher { contract_address: token_address }
                 .transfer_from(get_caller_address(), get_contract_address(), amount_u256);
             assert(transfer_success, 'Transfer to us failed');
+            self
+                .emit(
+                    Transfer {
+                        from: get_caller_address(), to: get_contract_address(), value: amount_u256
+                    }
+                );
             true
         }
     }
