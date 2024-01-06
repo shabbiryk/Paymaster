@@ -38,6 +38,7 @@ mod Call {
     use core::array::{ArrayTrait, SpanTrait};
     use core::result::{ResultTrait};
     use starknet::get_tx_info;
+    use paymaster::error::ErrorMessage;
     use starknet::VALIDATED;
     use super::{ICall, IExternalCalls, IERC20, IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::{
@@ -66,10 +67,13 @@ mod Call {
     impl ExternalCallImpl of IExternalCalls<ContractState> {
         fn call_execute(ref self: ContractState, calls: Array<ICall>) -> Array<Span<felt252>> {
             let caller = get_caller_address();
-            assert(caller.is_zero(), 'Invalid Caller');
+            assert(caller.is_zero(), ErrorMessage::INVALID_CALLER);
             let tx_info = get_tx_info().unbox();
-            assert(tx_info.version != 0, 'Invalid Tx Version');
-            assert(_validate_transaction(caller.into()) == VALIDATED, 'Invalid User Signature');
+            assert(tx_info.version != 0, ErrorMessage::INVALID_TRANSACTION_VERSION);
+            assert(
+                _validate_transaction(caller.into()) == VALIDATED,
+                ErrorMessage::INVALID_USER_SIGNATURE
+            );
             _execute_transaction(calls.span())
         }
 
@@ -79,7 +83,7 @@ mod Call {
             let amount_u256: u256 = amount.into();
             let transfer_success = IERC20Dispatcher { contract_address: token_address }
                 .transfer_from(get_caller_address(), get_contract_address(), amount_u256);
-            assert(transfer_success, 'Transfer to us failed');
+            assert(transfer_success, ErrorMessage::TRANSFER_FAILED);
             self
                 .emit(
                     Transfer {
@@ -93,7 +97,7 @@ mod Call {
     fn _validate_transaction(caller_address: felt252) -> felt252 {
         let tx_info = get_tx_info().unbox();
         let sig = tx_info.signature;
-        assert(sig.len() == 2_u32, 'invalid signature length');
+        assert(sig.len() == 2_u32, ErrorMessage::INVALID_SIGNATURE_LENGTH);
         assert(
             check_ecdsa_signature(
                 message_hash: tx_info.transaction_hash,
@@ -101,7 +105,7 @@ mod Call {
                 signature_r: *sig[0_u32],
                 signature_s: *sig[1_u32],
             ),
-            'invalid signature'
+            ErrorMessage::INVALID_USER_SIGNATURE
         );
 
         VALIDATED
